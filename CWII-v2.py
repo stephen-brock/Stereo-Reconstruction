@@ -55,7 +55,6 @@ def check_dup_locations(y, z, loc_list):
         if loc_y == y and loc_z == z:
             return True
 
-
 # print("here", flush=True)
 if __name__ == '__main__': 
 
@@ -247,6 +246,17 @@ if __name__ == '__main__':
     '''
     ###################################
 
+    def getCircles(image, image_name):
+        grayImage = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        circles = cv2.HoughCircles(grayImage, cv2.HOUGH_GRADIENT, 1.5, 30, param1=600,param2=20,minRadius=0,maxRadius=50)
+        circles = np.uint16(np.around(circles))
+        for i in circles[0]:
+            cv2.circle(image,(i[0],i[1]),i[2],(0,255,0),2)
+        
+        cv2.imwrite("output/" + image_name + ".bmp", image)
+
+    getCircles(img0, "image0")
+    getCircles(img1, "image1")
 
     ###################################
     '''
