@@ -311,6 +311,7 @@ if __name__ == '__main__':
         colour = (random.random() * 255, random.random() * 255, random.random() * 255)
         epipolar_lines.append((p1[1],p2[1],colour))
         #plot line
+        cv2.circle(img0, (i[0], i[1]), 2, (0,0,0), 4)
         cv2.circle(img0, (i[0], i[1]), i[2], colour, 2)
         cv2.line(img1, (int(p1[0]), int(p1[1])), (int(p2[0]), int(p2[1])), colour, 2)
     
@@ -340,7 +341,7 @@ if __name__ == '__main__':
                 closestDistance = dst
                 closest = l
                 
-        line = epipolar_lines_copied.pop(closest)
+        line = epipolar_lines_copied[closest]
         y = line[1] * t + line[0] * (1 - t)
         matches.append((i, closest))
         cv2.circle(img1, (circle[0], circle[1]), circle[2], line[2],2)
@@ -355,23 +356,28 @@ if __name__ == '__main__':
     Write your code here
     '''
     ###################################
-
+    positions = []
     for match in matches:
         ref_circle = reference_circles[match[1]]
         P_Ri = np.array([ref_circle[0], ref_circle[1], 1])
         view_circle = viewing_circles[match[0]]
         P_Vi = np.array([view_circle[0], view_circle[1], 1])
 
-        p_Ri = (M @ P_Ri) * focal_length
-        p_Vi = (M @ P_Vi) * focal_length
+        p_Ri = (M @ P_Ri)
+        p_Vi = (M @ P_Vi)
 
-        p_V_Rt = R2 @ p_Vi
+        p_V_Rt = R2.T @ p_Vi
         #a * p_Ri - b * p_V_Rt - c * (p_Ri X p_V_Rt) = T
         H = np.dstack((p_Ri, p_V_Rt, np.cross(p_Ri, p_V_Rt)))
         parameters = (np.linalg.inv(H) @ T).T
-        pos = (parameters[0] * p_Ri + parameters[1] * p_V_Rt + T) / 2
-        # print(pos)
-        print(H0_cw @ np.array([pos[0],pos[1],pos[2], 1]).T)
+        pos = (parameters[0] * p_Ri - parameters[1] * p_V_Rt + T) / 2
+        positions.append(pos)
+        pos /= pos[2]
+        pixel_pos = pos @ M_inv.T
+        col = epipolar_lines[match[1]][2]
+        cv2.circle(img0, (int(pixel_pos[0]), int(pixel_pos[1])), 2, col, 4)
+    
+    cv2.imwrite("output/3d-circles.bmp", img0)
 
     ###################################
     '''
