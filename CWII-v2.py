@@ -9,6 +9,8 @@ Yuhang Ming yuhang.ming@bristol.ac.uk
 Andrew Calway andrew@cs.bris.ac.uk
 '''
 
+from fileinput import close
+from turtle import width
 import cv2
 import open3d as o3d
 import matplotlib.pyplot as plt
@@ -117,7 +119,7 @@ if __name__ == '__main__':
             x = random.randrange(-h/2+2, h/2-2, step)
             z = random.randrange(-w/2+2, w/2-2, step)
         prev_loc.append((x, z))
-        # print(f'sphere_{i}: [{size}, {x}, {z}] {size}')
+        print(f'sphere_{i}: [{size}, {x}, {z}] {size}')
         GT_cents.append(np.array([x, size, z, 1.]))
         GT_rads.append(size)
         sph_H = np.array(
@@ -253,10 +255,10 @@ if __name__ == '__main__':
         for i in circles[0]:
             cv2.circle(image,(i[0],i[1]),i[2],(0,255,0),2)
         
-        cv2.imwrite("output/" + image_name + ".bmp", image)
-
-    getCircles(img0, "image0")
-    getCircles(img1, "image1")
+        # cv2.imwrite("output/" + image_name + "_circles.bmp", image)
+        return circles[0]
+    reference_circles = getCircles(img0, "image0")
+    viewing_circles = getCircles(img1, "image1")
 
     ###################################
     '''
@@ -269,6 +271,51 @@ if __name__ == '__main__':
     '''
     ###################################
 
+    #camera to world for reference camera
+    H0_cw = np.linalg.inv(H0_wc)
+    M_inv = K.intrinsic_matrix
+    M = np.linalg.inv(M_inv)
+    focal_length = K.get_focal_length()[0]
+    #transformation to viewing camera relative to reference camera space
+    R = H1_wc @ H0_cw
+    #remove translation component
+    R2 = np.delete(np.delete(R, 3, 0), 3, 1)
+    #viewing position relative to reference
+    T = np.linalg.inv(R) @ np.array([0,0,0,1])
+    T = np.delete(T, 3, 0)
+    epipolar_lines = []
+    for i in reference_circles:
+        #circle center in reference camera pixel coordinates
+        pixel_pos = np.array([i[0], i[1], 1])
+        #reference camera image space
+        image_pos = M @ pixel_pos
+        #cross product matrix
+        S = np.array([
+            [0,-T[2], T[1]], 
+            [T[2], 0, -T[0]], 
+            [-T[1], T[0], 0]])
+        #essential matrix
+        E = R2 @ S
+
+        #to solve for x/y
+        u = E @ image_pos
+        #x * u[0] + y * u[1] = -f * u[2]
+        #left side of screen
+        x1 = -img_width / 2
+        y1 = (-focal_length * u[2] - x1 * u[0]) / u[1]
+        p1 = (np.array([x1,y1,focal_length]) / focal_length) @ M_inv.T
+        #right side of screen
+        x2 = img_width / 2
+        y2 = (-focal_length * u[2] - x2 * u[0]) / u[1]
+        p2 = (np.array([x2,y2,focal_length]) / focal_length) @ M_inv.T
+        colour = (random.random() * 255, random.random() * 255, random.random() * 255)
+        epipolar_lines.append((p1[1],p2[1],colour))
+        #plot line
+        cv2.circle(img0, (i[0], i[1]), i[2], colour, 2)
+        cv2.line(img1, (int(p1[0]), int(p1[1])), (int(p2[0]), int(p2[1])), colour, 2)
+    
+    cv2.imwrite("output/img0_epipolar.bmp", img0)
+    cv2.imwrite("output/img1_epipolar.bmp", img1)
 
     ###################################
     '''
@@ -278,6 +325,28 @@ if __name__ == '__main__':
     '''
     ###################################
 
+    epipolar_lines_copied = epipolar_lines.copy()
+    matches = []
+    for i in range(len(viewing_circles)):
+        circle = viewing_circles[i]
+        closestDistance = 10000000
+        closest = -1
+        t = float(circle[0]) / img_width
+        for l in range(len(epipolar_lines_copied)):
+            line = epipolar_lines_copied[l]
+            y = line[1] * t + line[0] * (1 - t)
+            dst = abs(int(y) - circle[1])
+            if dst <= closestDistance:
+                closestDistance = dst
+                closest = l
+                
+        line = epipolar_lines_copied.pop(closest)
+        y = line[1] * t + line[0] * (1 - t)
+        matches.append((i, closest))
+        cv2.circle(img1, (circle[0], circle[1]), circle[2], line[2],2)
+    
+    cv2.imwrite("output/matched_circles.bmp", img1)
+        
 
     ###################################
     '''
@@ -287,6 +356,22 @@ if __name__ == '__main__':
     '''
     ###################################
 
+    for match in matches:
+        ref_circle = reference_circles[match[1]]
+        P_Ri = np.array([ref_circle[0], ref_circle[1], 1])
+        view_circle = viewing_circles[match[0]]
+        P_Vi = np.array([view_circle[0], view_circle[1], 1])
+
+        p_Ri = (M @ P_Ri) * focal_length
+        p_Vi = (M @ P_Vi) * focal_length
+
+        p_V_Rt = R2 @ p_Vi
+        #a * p_Ri - b * p_V_Rt - c * (p_Ri X p_V_Rt) = T
+        H = np.dstack((p_Ri, p_V_Rt, np.cross(p_Ri, p_V_Rt)))
+        parameters = (np.linalg.inv(H) @ T).T
+        pos = (parameters[0] * p_Ri + parameters[1] * p_V_Rt + T) / 2
+        # print(pos)
+        print(H0_cw @ np.array([pos[0],pos[1],pos[2], 1]).T)
 
     ###################################
     '''
