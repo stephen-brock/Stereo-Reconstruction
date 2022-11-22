@@ -357,6 +357,7 @@ if __name__ == '__main__':
     '''
     ###################################
     positions = []
+    errors = []
     for match in matches:
         ref_circle = reference_circles[match[1]]
         P_Ri = np.array([ref_circle[0], ref_circle[1], 1])
@@ -372,12 +373,8 @@ if __name__ == '__main__':
         parameters = (np.linalg.inv(H) @ T).T
         pos = (parameters[0] * p_Ri - parameters[1] * p_V_Rt + T) / 2
         positions.append(pos)
-        pos /= pos[2]
-        pixel_pos = pos @ M_inv.T
-        col = epipolar_lines[match[1]][2]
-        cv2.circle(img0, (int(pixel_pos[0]), int(pixel_pos[1])), 2, col, 4)
+        errors.append(abs(parameters[2] / 2))
     
-    cv2.imwrite("output/3d-circles.bmp", img0)
 
     ###################################
     '''
@@ -387,7 +384,14 @@ if __name__ == '__main__':
     '''
     ###################################
 
+    for i in range(len(matches)):
+        col = epipolar_lines[matches[i][1]][2]
+        pos = positions[i]
+        pixel_pos = (pos / pos[2]) @ M_inv.T
+        print("Error: ", errors[i])
+        cv2.circle(img0, (int(pixel_pos[0]), int(pixel_pos[1])), 2, col, 4)
 
+    cv2.imwrite("output/3d-circles.bmp", img0)
     ###################################
     '''
     Question 8: 3-D radius of spheres
@@ -395,6 +399,12 @@ if __name__ == '__main__':
     Write your code here
     '''
     ###################################
+
+
+    for i in range(len(matches)):
+        circle = viewing_circles[matches[i][0]]
+        posDepth = positions[i][2]
+        print(circle[2] / posDepth)
 
 
     ###################################
