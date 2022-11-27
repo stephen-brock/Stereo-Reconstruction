@@ -248,17 +248,21 @@ if __name__ == '__main__':
     '''
     ###################################
 
-    def getCircles(image, image_name):
+    def getCircles(image):
+        #grayscale input required
         grayImage = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
         circles = cv2.HoughCircles(grayImage, cv2.HOUGH_GRADIENT, 1.5, 30, param1=600,param2=20,minRadius=0,maxRadius=50)
-        circles = np.uint16(np.around(circles))
+        #round to discrete pixel values
+        #lose resolution
+        # circles = np.uint16(np.around(circles))
         for i in circles[0]:
-            cv2.circle(image,(i[0],i[1]),i[2],(0,255,0),2)
+            cv2.circle(image,(int(i[0]),int(i[1])),int(i[2]),(0,255,0),2)
         
-        # cv2.imwrite("output/" + image_name + "_circles.bmp", image)
         return circles[0]
-    reference_circles = getCircles(img0, "image0")
-    viewing_circles = getCircles(img1, "image1")
+    #reference camera circles
+    reference_circles = getCircles(img0)
+    #viewing camera circles
+    viewing_circles = getCircles(img1)
 
     ###################################
     '''
@@ -311,12 +315,11 @@ if __name__ == '__main__':
         colour = (random.random() * 255, random.random() * 255, random.random() * 255)
         epipolar_lines.append((p1[1],p2[1],colour))
         #plot line
-        cv2.circle(img0, (i[0], i[1]), 2, (0,0,0), 4)
+        cv2.circle(img0, (i[0], i[1]), 1, (0,0,0), 2)
         cv2.circle(img0, (i[0], i[1]), i[2], colour, 2)
         cv2.line(img1, (int(p1[0]), int(p1[1])), (int(p2[0]), int(p2[1])), colour, 2)
     
-    cv2.imwrite("output/img0_epipolar.bmp", img0)
-    cv2.imwrite("output/img1_epipolar.bmp", img1)
+    cv2.imwrite("output/q4_epipolar.bmp", img1)
 
     ###################################
     '''
@@ -346,7 +349,7 @@ if __name__ == '__main__':
         matches.append((i, closest))
         cv2.circle(img1, (circle[0], circle[1]), circle[2], line[2],2)
     
-    cv2.imwrite("output/matched_circles.bmp", img1)
+    cv2.imwrite("output/q5_matched.bmp", img1)
         
 
     ###################################
@@ -357,7 +360,7 @@ if __name__ == '__main__':
     '''
     ###################################
     positions = []
-    errors = []
+    gt_radii = []
     for match in matches:
         ref_circle = reference_circles[match[1]]
         P_Ri = np.array([ref_circle[0], ref_circle[1], 1])
@@ -372,8 +375,18 @@ if __name__ == '__main__':
         H = np.dstack((p_Ri, p_V_Rt, np.cross(p_Ri, p_V_Rt)))
         parameters = (np.linalg.inv(H) @ T).T
         pos = (parameters[0] * p_Ri - parameters[1] * p_V_Rt + T) / 2
+        minRadius = None
+        minDst = 1000000
+        for gt in GT_cents:
+            gt_ref = H0_wc @ gt
+            dst = np.linalg.norm(np.array([pos[0], pos[1], pos[2], 1]) - gt_ref)
+            if dst < minDst:
+                minRadius = gt[1]
+                minDst = dst
+        print("Error: ", minDst)
+        gt_radii.append(minRadius)
+            
         positions.append(pos)
-        errors.append(abs(parameters[2] / 2))
     
 
     ###################################
@@ -388,10 +401,9 @@ if __name__ == '__main__':
         col = epipolar_lines[matches[i][1]][2]
         pos = positions[i]
         pixel_pos = (pos / pos[2]) @ M_inv.T
-        print("Error: ", errors[i])
-        cv2.circle(img0, (int(pixel_pos[0]), int(pixel_pos[1])), 2, col, 4)
+        cv2.circle(img0, (int(pixel_pos[0]), int(pixel_pos[1])), 1, col, 2)
 
-    cv2.imwrite("output/3d-circles.bmp", img0)
+    cv2.imwrite("output/q7_centers.bmp", img0)
     ###################################
     '''
     Question 8: 3-D radius of spheres
@@ -400,11 +412,13 @@ if __name__ == '__main__':
     '''
     ###################################
 
-
+    radii = []
     for i in range(len(matches)):
-        circle = viewing_circles[matches[i][0]]
+        circle = reference_circles[matches[i][0]]
         posDepth = positions[i][2]
-        print(circle[2] / posDepth)
+        radius = circle[2] * posDepth / focal_length
+        print(radius, gt_radii[i])
+        radii.append(radius)
 
 
     ###################################
@@ -414,3 +428,11 @@ if __name__ == '__main__':
     Write your code here:
     '''
     ###################################
+
+    for i in range(len(matches)):
+        col = epipolar_lines[matches[i][1]][2]
+        pos = positions[i]
+        pixel_pos = (pos / pos[2]) @ M_inv.T
+        cv2.circle(img0, (int(pixel_pos[0]), int(pixel_pos[1])), int(focal_length * radii[i] / pos[2]), (255,255,0), 4)
+
+    cv2.imwrite("output/q9_spheres.bmp", img0)
