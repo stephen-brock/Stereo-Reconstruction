@@ -10,7 +10,6 @@ Andrew Calway andrew@cs.bris.ac.uk
 '''
 
 from fileinput import close
-from sqlite3 import SQLITE_DROP_VIEW
 from turtle import width
 import cv2
 import open3d as o3d
@@ -19,7 +18,6 @@ import numpy as np
 import math
 import random
 import argparse
-import csv
 
 
 '''
@@ -80,6 +78,7 @@ if __name__ == '__main__':
 
     img_width = 640
     img_height = 480
+    
 
     ####################################
     #### Setup objects in the scene ####
@@ -252,7 +251,7 @@ if __name__ == '__main__':
     def getCircles(image):
         #grayscale input required
         grayImage = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
-        circles = cv2.HoughCircles(grayImage, cv2.HOUGH_GRADIENT, 1.4, 30, param1=700,param2=21,minRadius=0,maxRadius=50)
+        circles = cv2.HoughCircles(grayImage, cv2.HOUGH_GRADIENT, 1.5, 30, param1=600,param2=20,minRadius=0,maxRadius=50)
         for i in circles[0]:
             cv2.circle(image,(int(i[0]),int(i[1])),int(i[2]),(0,255,0),2)
         
@@ -337,6 +336,8 @@ if __name__ == '__main__':
     '''
     ###################################
 
+    #lines will be removed to avoid duplicates
+    epipolar_lines_copied = epipolar_lines.copy()
     matches = []
     for i in range(len(viewing_circles)):
         circle = viewing_circles[i]
@@ -344,17 +345,8 @@ if __name__ == '__main__':
         closest = -1
         t = float(circle[0]) / img_width
         #find line with least distance
-        for l in range(len(epipolar_lines)):
-            #check if epipolar line has been used to force one to one mapping
-            contains = False
-            for match in matches:
-                if match[1] == l:
-                    contains = True
-                    break
-
-            if contains:
-                continue
-            line = epipolar_lines[l]
+        for l in range(len(epipolar_lines_copied)):
+            line = epipolar_lines_copied[l]
             #linearly interpolate on x to find corresponding y
             y = line[1] * t + line[0] * (1 - t)
             #distance
@@ -364,7 +356,7 @@ if __name__ == '__main__':
                 closestDistance = dst
                 closest = l
                 
-        line = epipolar_lines[closest]
+        line = epipolar_lines_copied[closest]
         y = line[1] * t + line[0] * (1 - t)
         matches.append((i, closest))
         #corresponding epipolar line colour
@@ -388,7 +380,6 @@ if __name__ == '__main__':
     #ground truth index related to positions
     gt_radii = []
     gt_copy = GT_cents.copy()
-    posErrors = []
     for match in matches:
         #find corresponding reference and view positions
         ref_circle = reference_circles[match[1]]
@@ -429,22 +420,11 @@ if __name__ == '__main__':
         gt_copy.pop(minIndex)
         #error distance between position and ground truth position
         print("Position error distance: ", minDst)
-        
-        posErrors.append(minDst)
         gt_radii.append(minRadius)
             
         positions.append(pos)
         pos_v = ((R @ np.array([pos[0], pos[1], pos[2], 1])))
         positions_v.append(pos_v[:3])
-    
-    print("Position error: ", np.mean(posErrors))
-    print("Max pos error", np.max(posErrors))
-
-    #recording average position errors
-    # line = [np.mean(posErrors), np.max(posErrors)]
-    # with open('pos4.csv', 'a') as file:
-    #     w = csv.writer(file)
-    #     w.writerow(line)
     
 
     ###################################
@@ -485,9 +465,6 @@ if __name__ == '__main__':
 
     #ground truth radius (gt_radii) is calculated in question 6 while matching the calculating corresponding ground truth spheres
     radii = []
-    radiusErrors = []
-    radiusErrors_r = []
-    radiusErrors_v = []
     for i in range(len(matches)):
         circle_r = reference_circles[matches[i][0]]
         circle_v = viewing_circles[matches[i][0]]
@@ -503,24 +480,8 @@ if __name__ == '__main__':
         #average of both viewing for best estimate
         radius = (radius_r + radius_v) / 2
         print("Estimated radius:", radius, " | True radius: ", gt_radii[i])
-        radiusErrors.append((radius - gt_radii[i]) ** 2)
-        radiusErrors_r.append((radius_r - gt_radii[i]) ** 2)
-        radiusErrors_v.append((radius_v - gt_radii[i]) ** 2)
         radii.append(radius)
 
-    # comparing radius errors in different views
-    line = [np.mean(radiusErrors_r), np.max(radiusErrors_r), 
-        np.mean(radiusErrors_v), np.max(radiusErrors_v), 
-        np.mean(radiusErrors), np.max(radiusErrors)]
-    with open('radius_after.csv', 'a') as file:
-        w = csv.writer(file)
-        w.writerow(line)
-
-    #recording average radius error
-    # line = [np.mean(radiusErrors), np.max(radiusErrors)]
-    # with open('radius4.csv', 'a') as file:
-    #     w = csv.writer(file)
-    #     w.writerow(line)
 
     ###################################
     '''
@@ -529,9 +490,6 @@ if __name__ == '__main__':
     Write your code here:
     '''
     ###################################
-    
-    img0 = cv2.imread('view0.png', -1)
-    img1 = cv2.imread('view1.png', -1)
 
     for i in range(len(matches)):
         col = epipolar_lines[matches[i][1]][2]
