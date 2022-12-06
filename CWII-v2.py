@@ -273,7 +273,6 @@ if __name__ == '__main__':
     
     Write your code here
     '''
-    ###################################
 
     #camera to world for reference camera
     #required for the R matrix
@@ -287,6 +286,40 @@ if __name__ == '__main__':
     M = np.linalg.inv(M_inv)
 
     focal_length = K.get_focal_length()[0]
+    ###################################
+
+    def minimumErrorEpipolar(u, E, image_pos):
+        #left side of screen
+        x1 = -img_width / 2
+        y1 = (-focal_length * u[2] - x1 * u[0]) / u[1]
+        p1 = np.array([x1,y1,focal_length])
+        xScore = p1.T @ E @ image_pos
+        p1 = (p1 / focal_length) @ M_inv.T
+        #right side of screen
+        x2 = img_width / 2
+        y2 = (-focal_length * u[2] - x2 * u[0]) / u[1]
+        p2 = np.array([x2,y2,focal_length])
+        x2Score = p2.T @ E @ image_pos
+        p2 = (p2 / focal_length) @ M_inv.T
+        print(xScore, x2Score)
+        #top of screen
+        y1 = -img_width / 2
+        x1 = (-focal_length * u[2] - y1 * u[1]) / u[0]
+        py1 = np.array([x1,y1,focal_length])
+        yScore = py1.T @ E @ image_pos
+        py1 = (py1 / focal_length) @ M_inv.T
+        #bottom of screen
+        y1 = img_width / 2
+        x1 = (-focal_length * u[2] - y1 * u[1]) / u[0]
+        py2 = np.array([x2,y2,focal_length])
+        y2Score = py2.T @ E @ image_pos
+        py2 = (py2 / focal_length) @ M_inv.T
+        print(yScore, y2Score)
+        #compare scores 
+        if abs(xScore) + abs(x2Score) < abs(yScore) + abs(y2Score):
+            return py1, py2
+        
+        return py1, py2
 
     #transformation to viewing camera relative to reference camera space
     #viewing position relative to reference
@@ -309,14 +342,7 @@ if __name__ == '__main__':
         #to solve for x/y
         u = E @ image_pos
         #x * u[0] + y * u[1] = -f * u[2]
-        #left side of screen
-        x1 = -img_width / 2
-        y1 = (-focal_length * u[2] - x1 * u[0]) / u[1]
-        p1 = (np.array([x1,y1,focal_length]) / focal_length) @ M_inv.T
-        #right side of screen
-        x2 = img_width / 2
-        y2 = (-focal_length * u[2] - x2 * u[0]) / u[1]
-        p2 = (np.array([x2,y2,focal_length]) / focal_length) @ M_inv.T
+        p1, p2 = minimumErrorEpipolar(u, E, image_pos)
         #random colour corresponding to the epipolar line for visual identification of spheres
         colour = (random.random() * 255, random.random() * 255, random.random() * 255)
         epipolar_lines.append((p1[1],p2[1],colour))
