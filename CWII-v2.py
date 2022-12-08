@@ -120,7 +120,7 @@ if __name__ == '__main__':
             x = random.randrange(-h/2+2, h/2-2, step)
             z = random.randrange(-w/2+2, w/2-2, step)
         prev_loc.append((x, z))
-        print(f'sphere_{i}: [{size}, {x}, {z}] {size}')
+        # print(f'sphere_{i}: [{size}, {x}, {z}] {size}')
         GT_cents.append(np.array([x, size, z, 1.]))
         GT_rads.append(size)
         sph_H = np.array(
@@ -473,8 +473,8 @@ if __name__ == '__main__':
         pos_v = ((R @ np.array([pos[0], pos[1], pos[2], 1])))
         positions_v.append(pos_v[:3])
     
-    print("Position error: ", np.mean(posErrors))
-    print("Max pos error", np.max(posErrors))
+    print("Mean position error: ", np.mean(posErrors))
+    print("Max position error", np.max(posErrors))
 
     #recording average position errors
     # line = [np.mean(posErrors), np.max(posErrors)]
@@ -536,8 +536,10 @@ if __name__ == '__main__':
         radius_r = circle_r[2] * posDepth / focal_length
         #radius by viewing camera perspective
         radius_v = circle_v[2] * posDepth_v / focal_length
-        #average of both viewing for best estimate
-        radius = (radius_r + radius_v) / 2
+        #average of both estimates
+        # radius = (radius_r + radius_v) / 2
+        #use viewing radius as results in better estimates in this scenario
+        radius = radius_v
         print("Estimated radius:", radius, " | True radius: ", gt_radii[i])
         radiusErrors.append((radius - gt_radii[i]) ** 2)
         radiusErrors_r.append((radius_r - gt_radii[i]) ** 2)
@@ -545,18 +547,21 @@ if __name__ == '__main__':
         radii.append(radius)
 
     # comparing radius errors in different views
-    line = [np.mean(radiusErrors_r), np.max(radiusErrors_r), 
-        np.mean(radiusErrors_v), np.max(radiusErrors_v), 
-        np.mean(radiusErrors), np.max(radiusErrors)]
-    with open('radius_after.csv', 'a') as file:
-        w = csv.writer(file)
-        w.writerow(line)
+    # line = [np.mean(radiusErrors_r), np.max(radiusErrors_r), 
+    #     np.mean(radiusErrors_v), np.max(radiusErrors_v), 
+    #     np.mean(radiusErrors), np.max(radiusErrors)]
+    # with open('radius_after.csv', 'a') as file:
+    #     w = csv.writer(file)
+    #     w.writerow(line)
 
     #recording average radius error
     # line = [np.mean(radiusErrors), np.max(radiusErrors)]
     # with open('radius4.csv', 'a') as file:
     #     w = csv.writer(file)
     #     w.writerow(line)
+
+    print("Mean radius square error:", np.mean(radiusErrors))
+    print("Max radius square error:", np.max(radiusErrors))
 
     ###################################
     '''
